@@ -1,0 +1,276 @@
+
+<!doctype html>
+
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <meta name="theme-color" content="#4F7DC9">
+  <meta charset="UTF-8">
+  <title>GCP Cloud Task: Patrón Productor/Consumidor usando funciones y colas de tareas</title>
+  <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Source+Code+Pro:400|Roboto:400,300,400italic,500,700|Roboto+Mono">
+  <link rel="stylesheet" href="//fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://storage.googleapis.com/claat-public/codelab-elements.css">
+  <style>
+    .success {
+      color: #1e8e3e;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <google-codelab-analytics gaid="UA-49880327-14"></google-codelab-analytics>
+  <google-codelab codelab-gaid=""
+                  id="dann-queues"
+                  title="GCP Cloud Task: Patrón Productor/Consumidor usando funciones y colas de tareas"
+                  environment="web"
+                  feedback-link="https://github.com/googlecodelabs/your-first-pwapp/issues">
+    
+      <google-codelab-step label="Introducción" duration="5">
+        <h2 is-upgraded><strong>Objetivos</strong></h2>
+<p>Al finalizar el tutorial el estudiante estará en capacidad de:</p>
+<ul>
+<li>Orquestar un conjunto de microservicios de manera asíncrona empleando colas de mensajería.</li>
+<li>Crear y configurar el servicio de Cloud Task para orquestar llamados de Cloud Function</li>
+</ul>
+<h2 is-upgraded><strong>Requisitos para desarrollar el tutorial</strong></h2>
+<p>En particular se utilizarán los siguientes recursos: </p>
+<ol type="1" start="1">
+<li>Contar con una cuenta activa en Google Cloud y con recursos para la creación de servicios. Además, contar con un proyecto creado en el que deberá crear la función. En caso de no tenerlo, a continuación se encuentra el manual para crearlos y/o administrarlos: <a href="https://cloud.google.com/resource-manager/docs/creating-managing-projects?hl=es-419&visit_id=637762328992900792-1700949917&rd=1" target="_blank">Crea y administra proyectos | Documentación de Resource Manager | Google Cloud</a></li>
+<li>Instalación y configuración para desarrollo en Python. En caso de no tenerlo instalado o correctamente configurado, a continuación se muestra el manual de instalación y configuración: <a href="https://cloud.google.com/python/docs/setup#windows" target="_blank">Configura un entorno de desarrollo de Python | Google Cloud</a></li>
+<li>Contar con un editor o IDE para manipular de manera correcta el código. Se recomienda trabajar con Visual Studio Code, pero puede usar el editor de su preferencia. A continuación se muestran los pasos de instalación de Visual Studio Code: <a href="https://code.visualstudio.com/" target="_blank">Visual Studio Code - Code Editing. Redefined</a></li>
+<li>Contar con gcloud SDK para acceder a los servicios del proveedor Google Cloud Platform a partir de la consola. En caso de no tenerla instalada puede consultar el siguiente manual de instalación: <a href="https://cloud.google.com/sdk/docs/install" target="_blank">Instalación de SDK de Cloud | Google Cloud</a></li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Google Cloud Task" duration="0">
+        <p>La utilización de servicios de colas permite ejecutar trabajos que sean independientes y que no requieran una respuesta inmediata al cliente. Estos esquemas permiten la ejecución de tareas asíncronas que serán ejecutadas de manera secuencial por uno o varios consumidores que se encargan de procesarla. </p>
+<p>En particular el servicio de Cloud Task permite la asociación de dos tipos de trabajadores a los que se les envía las tareas. El primero es un App Engine, para este caso es necesario contar con una aplicación en App Engine para que procese el mensaje cuando este sea notificado. La segunda es una petición HTTP, tanto para servicios internos como servicios externos, se puede configurar una petición a la que se mandará la solicitud cuando se agregué una tarea a la cola. En cualquiera de los casos, el trabajador deberá notificar el éxito de la ejecución de la tarea una vez que esta se complete de manera exitosa. Esto se hace a través de un código HTTP 2xx enviado por el trabajador. A continuación se ilustra este proceso:</p>
+<p><img style="width: 499.00px" src="img/9b025c07a87e81e3.png"><br>Imagen de (<em>Cloud Tasks overview | Cloud Tasks Documentation | Google Cloud</em>, s. f.)</p>
+<p>Una de las principales ventajas de la utilización del servicio es que se encarga de las partes más complejas del proceso como son: la latencia para el usuario, los errores del servidor, el consumo de recursos y la política de reintentos.</p>
+<p>Si desea ver más información puede remitirse al siguiente enlace: <a href="https://cloud.google.com/tasks/docs/dual-overview" target="_blank">Descripción general de Cloud Tasks</a></p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Preparación del proyecto" duration="2">
+        <h2 is-upgraded><strong>Clonar el repositorio.</strong></h2>
+<p>El código de la aplicación lo encuentra en el siguiente repositorio de GitHub <a href="https://github.com/MISW-4301-Desarrollo-Apps-en-la-Nube/gcp-das-cloud-task" target="_blank">gcp-cloud-task</a></p>
+<p>En el repositorio va a encontrar dos funciones.</p>
+<p>La primera se encuentra en la carpeta &#34;function-consumir-http&#34; y cuenta con la siguiente definición del servicio.</p>
+<table>
+<tr><td colspan="1" rowspan="1"></td><td colspan="1" rowspan="1"><p><strong>/</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Descripción</p>
+</td><td colspan="1" rowspan="1"><p>Retorna la entrada recibida por parámetro y deja un registro en la operación</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Método</p>
+</td><td colspan="1" rowspan="1"><p>POST</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Retorno</p>
+</td><td colspan="1" rowspan="1"><p><strong>application/json</strong>, con la información recibirá en el body. </p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Body de la petición</p>
+</td><td colspan="1" rowspan="1"><p><strong>application/json</strong>, no necesita una entrada concreta o específica.</p>
+</td></tr>
+</table>
+<p>La segunda se encuentra en la carpeta &#34;function-producir-http&#34; y cuenta con la siguiente definición del servicio.</p>
+<table>
+<tr><td colspan="1" rowspan="1"><p><strong>Endpoint</strong></p>
+</td><td colspan="1" rowspan="1"><p><strong>/</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Descripción</p>
+</td><td colspan="1" rowspan="1"><p>Retorna la información de una tarea creada. </p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Método</p>
+</td><td colspan="1" rowspan="1"><p>POST</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Retorno</p>
+</td><td colspan="1" rowspan="1"><p><strong>application/json</strong>. Objeto con la información básica de la tarea creada</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Body de la petición</p>
+</td><td colspan="1" rowspan="1"><p><strong>application/json</strong>, no necesita una entrada concreta o específica.</p>
+</td></tr>
+</table>
+<h2 is-upgraded><strong>Dinámica del ejercicio.</strong></h2>
+<p>Para el ejercicio se necesitaran dos funciones. La primera función se ejecutará con una petición HTTP de tipo POST con el contenido de un mensaje, que enviará una tarea a una cola de mensajes para procesar posteriormente. Una vez cargado el mensaje, el servicio de Cloud Task se encargará de notificar a una segunda función para que reciba el mensaje y muestre su contenido en el log de la aplicación. A continuación se muestra el diagrama de secuencia del proceso.</p>
+<p class="image-container"><img style="width: 601.70px" src="img/cf4494d3df7668e1.png"></p>
+<p>Cloud Tasks nos permite implementar el patrón de productor/consumidor y tener control sobre los inicios de ejecución de las tareas y las políticas de reintento en caso de fallas. En particular podemos agendar una tarea para ser ejecutada hasta 30 días en el futuro.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Entendiendo el código" duration="2">
+        <p>En la carpeta <strong>function-consumir-http </strong>encontrará un archivo main.py que contiene una función consumir. Como puede observar, esta función no hace uso de librerías para consumir los mensajes de la cola, lo que indica que el llamado al consumidor se delegará  a la plataforma y el desarrollador solo debe enfocarse en la construcción de la lógica de la aplicación.</p>
+<p class="image-container"><img style="width: 601.70px" src="img/3614170573dd279c.png"></p>
+<p>En la carpeta <strong>function-producir-http</strong> encontrará un archivo main.py el cual contiene la función producir. Esta función hace uso de la librería <strong>google-cloud-tasks</strong> para crear la conexión con la cola de tareas (línea 22), construye una tarea con la información que deseamos enviar (línea 25) y realiza la publicación de la tarea en la cola de tareas (línea 36).</p>
+<p class="image-container"><img style="width: 601.70px" src="img/a877de002d0747cd.png"></p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Validación del proyecto" duration="2">
+        <p>Debe verificar que el proyecto objetivo se encuentra seleccionado tanto el de la consola de google cloud como en la consola local de su computador.</p>
+<p>En google cloud asegúrese de tener seleccionado el proyecto al entrar a <a href="http://console.cloud.google.com/" target="_blank">console.cloud.google.com</a></p>
+<p class="image-container"><img style="width: 601.70px" src="img/b16b4955dddff9eb.png"></p>
+<p>En la terminal ejecute el siguiente comando para verificar que el <strong>ID de proyecto</strong> corresponde con el se la consola de google cloud:</p>
+<pre>user@192 ~ % gcloud config get-value project</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Activación de permisos para consumo" duration="4">
+        <p>Para poder realizar el consumo del servicio de Cloud Task es necesario habilitar al proyecto para que pueda consumir el servicio. Para ello realizaremos la creación de una cuenta de servicio para generar la key que utilizaremos para conectarnos. Para ello ejecutamos el siguiente comando para crear la cuenta de servicio que será utilizada por la función:</p>
+<pre>user@192 ~ % gcloud iam service-accounts create misw-das-productor --description=&#34;Cuenta de servicio para el tutorial de cloud task&#34; --display-name=&#34;Productor tutorial cloud task&#34;</pre>
+<p>A continuación se explica la configuración utilizada en la cuenta del servicio </p>
+<table>
+<tr><td colspan="1" rowspan="1"><p><strong>Parámetro</strong></p>
+</td><td colspan="1" rowspan="1"><p><strong>Utilidad</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p><code>misw-das-productor</code></p>
+</td><td colspan="1" rowspan="1"><p>Este valor hace referencia al nombre que le asignaremos a la cuenta y con el que la referenciamos para posteriores usos </p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p><code>--description</code></p>
+</td><td colspan="1" rowspan="1"><p>Nos permite agregar información descriptiva sobre la cuenta que nos ayude a aclarar el uso de la misma tanto para nosotros como para terceros</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p><code>--display-name</code></p>
+</td><td colspan="1" rowspan="1"><p>Nombre con el que se visualizará la cuenta cuando se liste desde la consola de GCP</p>
+</td></tr>
+</table>
+<p>Si la ejecución del comando es exitosa, deberá observar el siguiente mensaje en la consola de comandos: </p>
+<pre>Created service account [misw-das-productor].</pre>
+<p>Una vez tengamos la cuenta creada, deberemos asignar los permisos que le otorgamos a esta. Para este tutorial le asignaremos los permisos necesarios para la creación de las tareas en el servicio.</p>
+<pre>user@192 ~ % gcloud projects add-iam-policy-binding &lt;id_proyecto&gt; --member=&#34;serviceAccount:misw-das-productor@&lt;id_proyecto&gt;.iam.gserviceaccount.com&#34; --role=&#34;roles/cloudtasks.enqueuer&#34;</pre>
+<p>A continuación se aclara la información del comando ejecutado:</p>
+<table>
+<tr><td colspan="1" rowspan="1"><p><strong>Parámetro</strong></p>
+</td><td colspan="1" rowspan="1"><p><strong>Utilidad</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p><code>--member</code></p>
+</td><td colspan="1" rowspan="1"><p>Nos indica el nombre de la cuenta a la que se le asignan los permisos. Puede ser un usuario, un grupo, una cuenta de servicio o un dominio. En nuestro caso, se lo asignaremos a la cuenta creada en el paso anterior. </p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p><code>--role</code></p>
+</td><td colspan="1" rowspan="1"><p>Esto nos permite establecer qué permisos o funciones le asignaremos a la cuenta. En nuestro caso le asignaremos el permiso de encolar para los servicios de Cloud Task.</p>
+</td></tr>
+</table>
+<aside class="special"><p>Si desea explorar más posibles configuraciones que se permiten o que otras formas de asignación de permisos existen, puede ver el siguiente enlace: <a href="https://cloud.google.com/sdk/gcloud/reference/projects/add-iam-policy-binding?hl=es" target="_blank">Asignar permisos cuentas IAM</a></p>
+</aside>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Creación del servicio Cloud Task" duration="4">
+        <p>Debemos crear la cola de tareas que se utilizará para comunicar las dos funciones. Ejecute el siguiente comando en la terminal:</p>
+<pre>user@192 ~ % gcloud tasks queues create cola-cloud-task-tutorial --location=us-central1</pre>
+<p>Una vez realizado esto, se nos mostrará la página de administración de la cola que acabamos de crear. En este panel puede realizar el seguimiento a la ejecución de las tareas.</p>
+<p class="image-container"><img style="width: 601.70px" src="img/2cc3651a2eb647a5.png"></p>
+<p>Si selecciona la cola, podrá observar el panel de administración donde encontrará los registros de las operaciones, la visualización de las tareas y la configuración que con la que se creó. Si gusta puede explotar estas funcionalidades.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Creación de las funciones" duration="6">
+        <p>Para la ejecución de las pruebas necesitaremos crear dos funciones Cloud Function. La primera es la función que se encargará de encolar las tareas en la cola y la segunda actuará como trabajador. </p>
+<h2 is-upgraded><strong>Función consumidor</strong></h2>
+<p>La primera función que debemos crear es la que actuará de trabajador y será ejecutada. Está función se encargará de recibir la información de la cola y se ejecutará por cada tarea encolada. Cuando esta función se ejecuté dejará en el log de operaciones un evento indicando el llamado y la información recibida en la cola.</p>
+<p>Publique la función que está en la carpeta <code>function-consumir-http</code> con el siguiente comando:</p>
+<pre>user@192 ~ % gcloud functions deploy funcion-tutorial-consumidor --entry-point consumir --runtime python39 --trigger-http --allow-unauthenticated --memory 128MB --region us-central1 --timeout 60 --min-instances 0 --max-instances 1</pre>
+<aside class="special"><p>Nota: Si tiene dudas de como realizar el proceso le recomendamos revisar el tutorial de Cloud Function</p>
+</aside>
+<aside class="special"><p>Para simplificar el manejo de permisos y enfocarnos sólamente en arquitectura, utilizamos la opción <code>--allow-unauthenticated</code> de tal manera que la cola de trabajo pueda invocar la función creada sin tener que asumir alguna identidad.</p>
+</aside>
+<h2 is-upgraded><strong>Función productor de tareas</strong></h2>
+<p>La segunda función que debemos crear será la encargada de realizar la inserción de las tareas en la Cloud Task. Para esta función será necesario tener presente que se utilizará la cuenta de servicio creada previamente para poder establecer la conexión con el servicio de Cloud Task y que la configuración necesaria para la definición de la tarea se realizará a través de las variables de entorno.</p>
+<p>A continuación se describen las variables de entorno necesarias para el correcto funcionamiento de la función:</p>
+<ul>
+<li>LOCATION_ID: Región en la que fue creada la cola de tareas </li>
+<li>PROJECT_ID: Identificador del proyecto con el que se está trabajando.</li>
+<li>QUEUE_ID: Nombre de la cola donde se insertarán las tareas.. </li>
+<li>URL_FUNCTION: Url de la función que actuará como trabajador.</li>
+</ul>
+<p>Para realizar la publicación, ejecute el siguiente comando:</p>
+<pre>user@192 ~ % gcloud functions deploy funcion-tutorial-productor --entry-point producir --runtime python39 --trigger-http --allow-unauthenticated --memory 128MB --region us-central1 --timeout 60 --min-instances 0 --max-instances 1 --service-account &#34;misw-das-productor@&lt;id_proyecto&gt;.iam.gserviceaccount.com&#34; --set-env-vars LOCATION_ID=us-central1,PROJECT_ID=&lt;id_proyecto&gt;,QUEUE_ID=cola-cloud-task-tutorial,URL_FUNCTION=https://us-central1-&lt;id_proyecto&gt;.cloudfunctions.net/funcion-tutorial-consumidor</pre>
+<p>La mayoría de los parámetros de configuración se mostraron en el tutorial &#34;Despliegue de funciones como servicio&#34;. Sin embargo, ahora tenemos un parámetro adicional que nos permite configurar la cuenta de acceso para establecer la comunicación con los servicios. Este es el que se debe modificar para establecer la conexión. A continuación se explica el nuevo parámetro.</p>
+<table>
+<tr><td colspan="1" rowspan="1"><p><strong>Parámetro</strong></p>
+</td><td colspan="1" rowspan="1"><p><strong>Utilidad</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p><code>--service-account</code></p>
+</td><td colspan="1" rowspan="1"><p>Esto permite establecer la cuenta de servicio de IAM para establecer los permisos que tendrá la función. Para especificar el valor, se debe poner el correo completo de la cuenta de servicio.</p>
+</td></tr>
+</table>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Verificar funcionamiento de la orquestación" duration="3">
+        <h2 is-upgraded><strong>Configuración de la prueba.</strong></h2>
+<p>Para poder realizar la prueba de las funciones, deberá importar la colección de Postman que se encuentra en la carpeta <code>collections</code> que se encuentra dentro del repositorio. Una vez la tenga importada, deberá configurar las variables para que pueda realizar las pruebas. </p>
+<aside class="special"><p>En la colección encontrará solo la petición hacia la función productora. Tenga en cuenta que la consumidora se debe llamar con las tareas del Cloud Task</p>
+</aside>
+<p>Para ello iremos a las opciones de la colección que acabamos de importar, seleccionaremos la opción &#34;editar&#34;</p>
+<p class="image-container"><img style="width: 562.00px" src="img/477c0a7ba5c4d216.png"></p>
+<p>Luego en la pestaña &#34;Variables&#34;, encontrará dos variables que debe configurar para la realización de la prueba. </p>
+<table>
+<tr><td colspan="1" rowspan="1"><p><strong>Variable </strong></p>
+</td><td colspan="1" rowspan="1"><p><strong>Descripción</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>id_project</p>
+</td><td colspan="1" rowspan="1"><p>Se establece el valor del identificador del proyecto en el que se encuentra trabajando y en donde realizó la publicación de las funciones. Recuerde que lo puede obtener en el panel principal del proyecto o ejecutando el comando de validación del proyecto (ver sección <a href="https://docs.google.com/document/d/1LIszN4lDgw2cNCUmxbZ3KWU5zLt7kOFWfpC7G2aiSxw/edit#heading=h.7zwpgee9napk" target="_blank">Validación del proyecto</a>).</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>region</p>
+</td><td colspan="1" rowspan="1"><p>Se debe establecer el valor de la región en donde se encuentra publicada la función. Eso lo puede obtener de función en la pestaña de &#34;Detalles&#34; o directamente del valor configurado en el parámetro <code>--region</code> de las opciones de despliegue. (Si no realizó ningún cambio al comando de publicación, la región será us-central1)</p>
+</td></tr>
+</table>
+<aside class="warning"><p>Para evitar posibles problemas, tenga en cuenta que los valores no deben tener espacios ni interlineados. </p>
+</aside>
+<h2 is-upgraded><strong>Prueba 1: Verificación del encolamiento. </strong></h2>
+<p>La primera prueba que se realizará es la verificación del encolamiento de las tareas. Para esto lo primero es detener la cola para que sea posible ver cómo se encolan las tareas. Para ello nos debemos dirigirnos al menú de navegación en la sección &#34;INTEGRACIÓN DE APPS&#34; y en la opción &#34;Cloud Task&#34;</p>
+<p class="image-container"><img style="width: 310.15px" src="img/328e7c20fb8c58e8.png"></p>
+<p>A continuación se nos mostrará todas las colas que tenemos actualmente creadas. Buscaremos la cola que hemos configurado para el ejercicio y la seleccionamos.</p>
+<p class="image-container"><img style="width: 601.70px" src="img/84f65646c6e7638b.png"></p>
+<p>Una vez estemos en el panel de administración, seleccionaremos la opción &#34;PAUSAR COLA&#34; que se encuentra en la parte superior.</p>
+<p class="image-container"><img style="width: 601.70px" src="img/6d804470a886832d.png"></p>
+<p>Una vez seleccionada la opción el estado de la cola va a cambiar a pausado. En este estado la cola es accesible. Es posible insertar tareas nuevas, pero estas no se ejecutarán hasta que la cola se vuelva a poner en funcionamiento. </p>
+<p>Ahora debemos realizar la creación de las tareas. Para esto nos dirigiremos a la colección de postman previamente importada y procederemos a realizar varios llamados. Para cada petición ejecutada se mostrará un mensaje en donde indican que la tarea se creó correctamente. Se recomienda crear varias tareas y ponerles un consecutivo para que en la siguiente prueba pueda ver el orden de ejecución y analizar el comportamiento de la orquestación. </p>
+<p class="image-container"><img style="width: 601.70px" src="img/c52748e569511dfc.png"></p>
+<p>Una vez creadas las tareas nos dirigimos al panel de la cola creada y presionamos la opción &#34;ACTUALIZAR&#34; para que podamos ver las tareas, en nuestro caso se crearon cinco tareas. </p>
+<p class="image-container"><img style="width: 601.70px" src="img/7faec6d82be5f877.png"></p>
+<h2 is-upgraded><strong>Prueba 2: Verificación de la ejecución</strong></h2>
+<p>Para la segunda parte de la prueba nos dirigiremos al panel de administración de la cola y en la parte superior seleccionamos la opción &#34;REANUDAR COLA&#34; y posteriormente seleccionaremos la opción &#34;ACTUALIZAR&#34; en repetidas ocasiones hasta que la cola se vacié. </p>
+<p class="image-container"><img style="width: 601.70px" src="img/874931a9002740a1.png"></p>
+<p class="image-container"><img style="width: 601.70px" src="img/929d8d86caffa9ec.png"></p>
+<p>Posteriormente a esto, nos dirigimos a la opción &#34;Cloud Function&#34; en el menú de navegación y en la lista de funciones disponibles seleccionamos la función que se encarga de ejecutar las tareas de la cola. (Ver Función consumidor). Luego la seleccionamos para entrar al panel de administración. </p>
+<p class="image-container"><img style="width: 601.70px" src="img/9fe426ee5a9186dd.png"></p>
+<p>Una vez nos encontremos en el panel de administración, nos dirigimos a la sección &#34;REGISTROS&#34;. Entre los registros debemos poder ver el listado de los llamados a la función y registros informativos generados. En este caso deberemos ver el registro de todas las tareas generadas y deberían encontrarse en el orden generado.</p>
+<p class="image-container"><img style="width: 601.70px" src="img/a2ff5d1784fdd999.png"></p>
+<h2 is-upgraded><strong>Prueba 3: Prueba integrada</strong></h2>
+<p>Para la última prueba deberìa dejar la cola encendida y generar las tareas. El comportamiento esperado es que vea la ejecución de la tareas en el log de la función trabajador para ver los llamados de las tareas.</p>
+<aside class="special"><p>Nota: Para esta prueba puede realizar distintas estrategias en la ejecución para que pueda analizar los distintos comportamientos de la orquestación. Se sugiere hacer ejecuciones en paralelo para la carga de tareas, realizar una carga intensiva de tareas, etc... También puede realizar cambios en la configuración de Cloud Task para ajustar la ejecución de las tareas y/o políticas de reintentos.</p>
+</aside>
+<p>¡Éxitos en el desarrollo del tutorial y nos vemos en una próxima oportunidad!</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Referencias" duration="0">
+        <p>[1] <em>Cloud Tasks overview | Cloud Tasks Documentation | Google Cloud</em>. (s. f.). Google Cloud. <a href="https://cloud.google.com/tasks/docs/dual-overview" target="_blank">https://cloud.google.com/tasks/docs/dual-overview</a></p>
+<p>[2] <em>Quickstart for Cloud Tasks queues | Cloud Tasks Documentation | Google Cloud</em>. (s. f.). Google Cloud. <a href="https://cloud.google.com/tasks/docs/quickstart" target="_blank">https://cloud.google.com/tasks/docs/quickstart</a></p>
+<p>[3] <em>HTTP Functions | Cloud Functions Documentation | Google Cloud</em>. (s. f.). Google Cloud. <a href="https://cloud.google.com/functions/docs/writing/http" target="_blank">https://cloud.google.com/functions/docs/writing/http</a></p>
+
+
+      </google-codelab-step>
+    
+  </google-codelab>
+
+  <script src="https://storage.googleapis.com/claat-public/native-shim.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/custom-elements.min.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/prettify.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/codelab-elements.js"></script>
+  <script src="//support.google.com/inapp/api.js"></script>
+
+</body>
+</html>

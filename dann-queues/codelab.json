@@ -1,0 +1,39 @@
+{
+  "environment": "web",
+  "format": "html",
+  "prefix": "https://storage.googleapis.com",
+  "mainga": "UA-49880327-14",
+  "updated": "2023-03-08T03:03:10Z",
+  "id": "dann-queues",
+  "duration": 28,
+  "title": "GCP Cloud Task: Patrón Productor/Consumidor usando funciones y colas de tareas",
+  "authors": "William Duarte, Germán Sotelo, César Forero",
+  "summary": "En el siguiente tutorial se explorará la creación y manejo de los servicios de Cloud Task con la finalidad de permitir la orquestación de funciones de manera asíncrona.",
+  "source": "1pUC9Zwn6lYbI8glz6K1dqCo9aRz3e7hTppgmNdXD-Gc",
+  "theme": "desarrollo-aplicaciones-nube",
+  "status": [
+    "published"
+  ],
+  "category": [
+    "desarrollo-aplicaciones-nube"
+  ],
+  "tags": [
+    "cds17",
+    "chrome-dev-summit-2016",
+    "devfest18",
+    "gdd17",
+    "io2016",
+    "io2017",
+    "io2018",
+    "io2019",
+    "jsconfeu",
+    "kiosk",
+    "pwa-dev-summit",
+    "pwa-roadshow",
+    "tag-web",
+    "typtwd17",
+    "web"
+  ],
+  "feedback": "https://github.com/googlecodelabs/your-first-pwapp/issues",
+  "url": "dann-queues"
+}

@@ -1,0 +1,161 @@
+
+<!doctype html>
+
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <meta name="theme-color" content="#4F7DC9">
+  <meta charset="UTF-8">
+  <title>GCP Cloud Storage: Activadores asíncronos para funciones como servicio</title>
+  <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Source+Code+Pro:400|Roboto:400,300,400italic,500,700|Roboto+Mono">
+  <link rel="stylesheet" href="//fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://storage.googleapis.com/claat-public/codelab-elements.css">
+  <style>
+    .success {
+      color: #1e8e3e;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <google-codelab-analytics gaid="UA-49880327-14"></google-codelab-analytics>
+  <google-codelab codelab-gaid=""
+                  id="dann-storage-events"
+                  title="GCP Cloud Storage: Activadores asíncronos para funciones como servicio"
+                  environment="web"
+                  feedback-link="https://github.com/googlecodelabs/your-first-pwapp/issues">
+    
+      <google-codelab-step label="Introducción" duration="5">
+        <h2 is-upgraded><strong>Objetivos</strong></h2>
+<p>Al finalizar el tutorial el estudiante estará en capacidad de:</p>
+<ul>
+<li>Orquestar la ejecución de funciones a partir de la ocurrencia de un evento.</li>
+<li>Crear y configurar funciones (Cloud Function) para que se ejecuten ante el evento de carga de los archivos en un bucket de Cloud Storage</li>
+</ul>
+<h2 is-upgraded><strong>Requisitos para desarrollar el tutorial</strong></h2>
+<p>En particular se utilizarán los siguientes recursos: </p>
+<ol type="1" start="1">
+<li>Contar con una cuenta activa en Google Cloud y con recursos para la creación de servicios. Además, contar con un proyecto creado en el que deberá crear la función. En caso de no tenerlo, a continuación se encuentra el manual para crearlos y/o administrarlos: <a href="https://cloud.google.com/resource-manager/docs/creating-managing-projects?hl=es-419&visit_id=637762328992900792-1700949917&rd=1" target="_blank">Crea y administra proyectos  |  Documentación de Resource Manager  |  Google Cloud</a></li>
+<li>Instalación y configuración para desarrollo en Python. En caso de no tenerlo instalado o correctamente configurado, a continuación se muestra el manual de instalación y configuración: <a href="https://cloud.google.com/python/docs/setup#windows" target="_blank">Configura un entorno de desarrollo de Python  |  Google Cloud</a></li>
+<li>Contar con un editor o IDE para manipular de manera correcta el código. Se recomienda trabajar con Visual Studio Code, pero puede usar el editor de su preferencia. A continuación se muestran los pasos de instalación de Visual Studio Code: <a href="https://code.visualstudio.com/" target="_blank">Visual Studio Code - Code Editing. Redefined</a></li>
+<li>Contar con gcloud SDK para acceder a los servicios del proveedor Google Cloud Platform a partir de la consola. En caso de no tenerla instalada puede consultar el siguiente manual de instalación: <a href="https://cloud.google.com/sdk/docs/install" target="_blank">Instalación de SDK de Cloud  |  Google Cloud</a></li>
+<li>Para este tutorial es de suma importancia que haya concluido de manera exitosa los tutoriales de despliegue de funciones como servicio, y funciones con storage (almacenamiento de archivos).</li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Preparación del proyecto" duration="2">
+        <p>El código de la aplicación lo encuentra en el siguiente repositorio de GitHub <a href="https://github.com/MISW-4301-Desarrollo-Apps-en-la-Nube/gcp-das-datastore" target="_blank">gcp-das-storage</a></p>
+<p>En el repositorio va a encontrar la siguiente función. En la carpeta &#34;procesar-creacion-heroe&#34; y cuenta con la siguiente definición del servicio.</p>
+<table>
+<tr><td colspan="1" rowspan="1"></td><td colspan="1" rowspan="1"><p><strong>/</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Descripción</p>
+</td><td colspan="1" rowspan="1"><p>Retorna la entrada recibida por parámetro y deja un registro en la operación</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Método</p>
+</td><td colspan="1" rowspan="1"><p>POST</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Retorno</p>
+</td><td colspan="1" rowspan="1"><p><strong>application/json</strong>, con la información recibirá en el body. </p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Body de la petición</p>
+</td><td colspan="1" rowspan="1"><p><strong>application/json</strong>, no necesita una entrada concreta o específica.</p>
+</td></tr>
+</table>
+<h2 is-upgraded><strong>Dinámica del ejercicio.</strong></h2>
+<p>En este ejercicio se realizará la publicación de una sola función que se activará cuando se cree un nuevo archivo en el servicio de Cloud Storage. El comportamiento que se espera simular es la ejecución de la función cuando ocurra un evento de creación. En este tipo de esquemas se tiene la ventaja de que el o los agentes que se encargan de disparar el evento (en nuestro caso la creación del archivo) son agnósticos a la función en sí, por lo que solo definiremos la interacción de estos dos elementos en el sistema. A continuación se ilustran los componentes que interactúan y la dinámica de la ejecución para este taller:</p>
+<p>Componentes involucrados </p>
+<p class="image-container"><img style="width: 406.15px" src="img/7ac3ad06752a32e9.png"></p>
+<p>Diagrama de secuencia de la ejecución</p>
+<p class="image-container"><img style="width: 601.70px" src="img/26642781a5d0a33a.png"></p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Entendiendo el código" duration="2">
+        <p>Si verifica el código del archivo main.py en la carpeta del proyecto, encontrará que el código solo cuenta con una función que no hace uso de librerías de terceros. Lo que implica que nuestra función es independiente de la plataforma de ejecución, y será la plataforma la encargada de su llamado y no la función la encargada de escuchar los cambios en la plataforma.</p>
+<p class="image-container"><img style="width: 601.70px" src="img/411782f7ffe6e46c.png"></p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Validación del proyecto" duration="2">
+        <p>Debe verificar que el proyecto objetivo se encuentra seleccionado tanto el de la consola de google cloud como en la consola local de su computador.</p>
+<p>En google cloud asegúrese de tener seleccionado el proyecto al entrar a <a href="http://console.cloud.google.com/" target="_blank">console.cloud.google.com</a></p>
+<p class="image-container"><img style="width: 601.70px" src="img/71e84f9af353cc75.png"></p>
+<p>En el la terminal ejecute el siguiente comando para verificar que el <strong>ID de proyecto</strong> corresponde con el se la consola de google cloud:</p>
+<pre>user@192 ~ % gcloud config get-value project</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Creación del Bucket de almacenamiento" duration="2">
+        <p>Este tutorial seguiremos trabajando con el bucket de almacenamiento que se creó en el taller &#34;Funciones y storage&#34; de gcp. En este se debió crear un servicio de almacenamiento con un nombre elegido por el estudiante. En caso de no haber completado este taller, le recomendamos por favor realizarlo. </p>
+<aside class="warning"><p>Es muy importante tener el nombre exacto con el que se creó el bucket pues sin esto no será posible relacionarlo con la función en los pasos posteriores</p>
+</aside>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Creación de la función" duration="6">
+        <p>Dentro del repositorio, abra la terminal y diríjase a la carpeta de la función <code>procesar-creacion-heroe</code>.</p>
+<pre>user@192 ~ % cd procesar-creacion-heroe</pre>
+<p>Una vez allí, vamos a realizar la publicación de la función. Para ello debemos ejecutar el siguiente comando, ajustando el nombre del bucket sobre el que se ejecutará el evento:</p>
+<pre>user@192 ~ % gcloud functions deploy funcion-bienvenida-heroe-crear --entry-point load --runtime python39 --trigger-resource &lt;nombre_bucket&gt; --trigger-event google.storage.object.finalize --memory 128M --region us-central1 --timeout 60 --min-instances 0 --max-instances 1</pre>
+<p>La mayoría de los parámetros de configuración se mostraron en el tutorial &#34;Despliegue de funciones como servicio&#34;. Sin embargo, ahora tenemos dos parámetro diferentes a los ilustrados en aquel tutorial. A diferencia del anterior, en donde el trigger era una solicitud http, en este caso note que se utiliza como trigger un evento asociado a un recurso. A continuación se explican los nuevos parámetros.</p>
+<table>
+<tr><td colspan="1" rowspan="1"><p><strong>Parámetro</strong></p>
+</td><td colspan="1" rowspan="1"><p><strong>Utilidad</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p><code>--trigger-resource</code></p>
+</td><td colspan="1" rowspan="1"><p>Nos permite definir el recurso sobre el que se realiza la observación para ejecutar a la función. Este comando debe ir asociado con el parámetro <code>--trigger-event</code></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p><code>--trigger-event</code></p>
+</td><td colspan="1" rowspan="1"><p>Esto permite establecer el tipo de evento que estaremos monitoreando y que cuando se ejecute activará la función. Si desea ver una lista de posibles eventos, puede ejecutar el siguiente comando:</p>
+<p><strong><code>gcloud functions event-types list</code></strong> </p>
+</td></tr>
+</table>
+<p>Actualmente contamos con cuatro distintos tipos de eventos que se pueden configurar sobre el servicio de Cloud Storage. A continuación se describen estos eventos</p>
+<ol type="1" start="1">
+<li><strong>Archivar</strong>: El evento se dispara ante cambios de control de versiones. Por ejemplo cuando se crea una nueva versión o se elimina un archivo.</li>
+<li><strong>Borrar</strong>: Como su nombre indica, el evento se dispara ante la eliminación de algún elemento.</li>
+<li><strong>Finalizar/Crear:</strong> Este evento se dispara cuando se puede crear de manera exitosa la escritura de un nuevo elemento.</li>
+<li><strong>Actualizar Metadatos</strong>: Como su nombre indica, el evento se ejecuta cuando ocurre alguna modificación de los metadatos del objeto. </li>
+</ol>
+<p>En nuestro caso configuraremos el evento &#34;Finalizar/Crear&#34;. De esta manera la función se activará solo cuando reconozca un nuevo archivo en el bucket.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Verificar funcionamiento de la entrega del evento" duration="3">
+        <p>Luego de ejecutar un llamado de prueba a la función <strong>function-heroes-storage-crear</strong> que creó en el tutorial de Funciones y Storage, se creará un nuevo héroe que a su vez genera un archivo que desencadenará el llamado a nuestra nueva función.</p>
+<p>Posteriormente a esto, nos dirigimos a la opción &#34;Cloud Function&#34; en el menú de navegación y en la lista de funciones disponibles seleccionamos la función que hemos creado previamente. Luego la seleccionamos para entrar al panel de administración. </p>
+<p class="image-container"><img style="width: 601.70px" src="img/34ee1ffc984ad8f0.png"></p>
+<p>Una vez nos encontremos en el panel de administración, nos dirigimos a la sección &#34;REGISTROS&#34;. Entre los registros debemos poder ver el listado de los llamados a la función y registros informativos generados. En este caso deberemos ver un conjunto de registros con la información del archivo que hemos cargado y los registros generados por la ejecución de la nueva función.</p>
+<p class="image-container"><img style="width: 601.70px" src="img/eee5f3b4cfefda91.png"></p>
+<p>¡Éxitos en el desarrollo del tutorial y nos vemos en una próxima oportunidad!</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Referencias" duration="0">
+        <p>[1] Google. (s. f.). <em>What is Cloud Storage?  |  Google Cloud</em>. Google Cloud. <a href="https://cloud.google.com/storage/docs/introduction" target="_blank">https://cloud.google.com/storage/docs/introduction</a></p>
+<p>[2] ​​<em>Cloud Storage Tutorial  |  Cloud Functions Documentation  |  Google Cloud</em>. (s. f.). Google Cloud. <a href="https://cloud.google.com/functions/docs/tutorials/storage#object_metadata_update" target="_blank">https://cloud.google.com/functions/docs/tutorials/storage#object_metadata_update</a></p>
+
+
+      </google-codelab-step>
+    
+  </google-codelab>
+
+  <script src="https://storage.googleapis.com/claat-public/native-shim.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/custom-elements.min.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/prettify.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/codelab-elements.js"></script>
+  <script src="//support.google.com/inapp/api.js"></script>
+
+</body>
+</html>

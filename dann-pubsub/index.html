@@ -1,0 +1,215 @@
+
+<!doctype html>
+
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <meta name="theme-color" content="#4F7DC9">
+  <meta charset="UTF-8">
+  <title>GCP Pub/Sub: Patrón Publicador/Suscriptor usando funciones</title>
+  <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Source+Code+Pro:400|Roboto:400,300,400italic,500,700|Roboto+Mono">
+  <link rel="stylesheet" href="//fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://storage.googleapis.com/claat-public/codelab-elements.css">
+  <style>
+    .success {
+      color: #1e8e3e;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <google-codelab-analytics gaid="UA-49880327-14"></google-codelab-analytics>
+  <google-codelab codelab-gaid=""
+                  id="dann-pubsub"
+                  title="GCP Pub/Sub: Patrón Publicador/Suscriptor usando funciones"
+                  environment="web"
+                  feedback-link="https://github.com/googlecodelabs/your-first-pwapp/issues">
+    
+      <google-codelab-step label="Introducción" duration="5">
+        <h2 is-upgraded><strong>Objetivos</strong></h2>
+<p>Al finalizar el tutorial el estudiante estará en capacidad de:</p>
+<ul>
+<li>Orquestar un conjunto de microservicios de manera asíncrona</li>
+<li>Crear y configurar el servicio de Pub/Sub para orquestar llamados de Cloud Function</li>
+<li>Explorar el funcionamiento del patrón publicador suscriptor</li>
+</ul>
+<h2 is-upgraded><strong>Requisitos para desarrollar el tutorial</strong></h2>
+<p>En particular se utilizarán los siguientes recursos: </p>
+<ol type="1" start="1">
+<li>Contar con una cuenta activa en Google Cloud y con recursos para la creación de servicios. Además, contar con un proyecto creado en el que deberá crear la función. En caso de no tenerlo, a continuación se encuentra el manual para crearlos y/o administrarlos: <a href="https://cloud.google.com/resource-manager/docs/creating-managing-projects?hl=es-419&visit_id=637762328992900792-1700949917&rd=1" target="_blank">Crea y administra proyectos | Documentación de Resource Manager | Google Cloud</a></li>
+<li>Instalación y configuración para desarrollo en Python. En caso de no tenerlo instalado o correctamente configurado, a continuación se muestra el manual de instalación y configuración: <a href="https://cloud.google.com/python/docs/setup#windows" target="_blank">Configura un entorno de desarrollo de Python | Google Cloud</a></li>
+<li>Contar con un editor o IDE para manipular de manera correcta el código. Se recomienda trabajar con Visual Studio Code, pero puede usar el editor de su preferencia. A continuación se muestran los pasos de instalación de Visual Studio Code: <a href="https://code.visualstudio.com/" target="_blank">Visual Studio Code - Code Editing. Redefined</a></li>
+<li>Contar con gcloud SDK para acceder a los servicios del proveedor Google Cloud Platform a partir de la consola. En caso de no tenerla instalada puede consultar el siguiente manual de instalación: <a href="https://cloud.google.com/sdk/docs/install" target="_blank">Instalación de SDK de Cloud | Google Cloud</a></li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Preparación del proyecto" duration="2">
+        <h2 is-upgraded><strong>Clonar el repositorio.</strong></h2>
+<p>El código de la aplicación lo encuentra en el siguiente repositorio de GitHub <a href="https://github.com/MISW-4301-Desarrollo-Apps-en-la-Nube/gcp-das-pub-sub" target="_blank">gcp-pub-sub</a></p>
+<p>En el repositorio va a encontrar varias funciones, una productora y las demás consumidoras. La primera se encuentra en la carpeta &#34;function-publicador-ciudadano-http&#34; y cuenta con la siguiente definición del servicio.</p>
+<table>
+<tr><td colspan="1" rowspan="1"></td><td colspan="1" rowspan="1"><p><strong>/</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Descripción</p>
+</td><td colspan="1" rowspan="1"><p>Realiza el llamado de auxilio de un ciudadano para notificar a los distintos servicios de ayuda</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Método</p>
+</td><td colspan="1" rowspan="1"><p>POST</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Retorno</p>
+</td><td colspan="1" rowspan="1"><p><strong>application/json</strong>, con la información recibida en el body. </p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Body de la petición</p>
+</td><td colspan="1" rowspan="1"><p><strong>application/json</strong>, no necesita una entrada concreta o específica.</p>
+</td></tr>
+</table>
+<h2 is-upgraded><strong>Dinámica del ejercicio.</strong></h2>
+<p>En este ejercicio realizaremos la implementación del patrón publicador suscriptor en uno de los casos de uso más comunes. El objetivo es diseñar e implementar un sistema de notificaciones que permita avisar a distintos servicios de ayuda, cuando un ciudadano se encuentre en peligro. </p>
+<p>Actualmente se cuentan con tres distintos servicios de ayuda que están disponibles para la atención de distintas emergencias: La policía, los bomberos y la liga de héroes. Cuando un ciudadano realice una solicitud, se notificará a los tres servicios para que lo puedan ayudar. </p>
+<p>A continuación se muestra el esquema de funcionamiento general de la comunicación.</p>
+<p class="image-container"><img style="width: 601.70px" src="img/76466611864ad5d7.png"></p>
+<p>A continuación se ilustra el diagrama de secuencia del llamado de las funciones:</p>
+<p class="image-container"><img style="width: 601.70px" src="img/d30ec5e67a3606c4.png"></p>
+<aside class="special"><p>Note que el llamado a las funciones de los servicios se ejecuta de manera asíncrona y se ejecutan cuando se encola el evento. (Toda la coordinación del llamado es realizada por el servicio de Pub/Sub)</p>
+</aside>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Entendiendo el código" duration="5">
+        <p>En la carpeta <strong>function-publicador-ciudadano-http</strong> encontrará un archivo main.py el cual contiene la función publicador. Esta función hace uso de la librería <strong>google-cloud-pubsub</strong> para crear la conexión con pub-sub (línea 22), construye una mensaje con la información que deseamos enviar (línea 24) y realiza la publicación del mensaje (línea 30).</p>
+<p class="image-container"><img style="width: 601.70px" src="img/1fc0ab08f8c3b54c.png"></p>
+<p>Las demás funciones ubicadas en las carpetas <strong>function-suscriptor-*</strong> no hacen uso de librerías para consumir los mensajes de los tópicos, lo que indica que el llamado a los suscriptores se delegará  a la plataforma y el desarrollador solo debe enfocarse en la construcción de la lógica de la aplicación.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Validación del proyecto" duration="2">
+        <p>Debe verificar que el proyecto objetivo se encuentra seleccionado tanto el de la consola de google cloud como en la consola local de su computador.</p>
+<p>En google cloud asegúrese de tener seleccionado el proyecto al entrar a <a href="http://console.cloud.google.com/" target="_blank">console.cloud.google.com</a></p>
+<p class="image-container"><img style="width: 601.70px" src="img/b16b4955dddff9eb.png"></p>
+<p>En el la terminal ejecute el siguiente comando para verificar que el <strong>ID de proyecto</strong> corresponde con el se la consola de google cloud:</p>
+<pre>user@192 ~ % gcloud config get-value project</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Creación del tema en Pub/Sub" duration="1">
+        <p>El servicio de Pub/Sub permite el manejo de eventos siguiendo el patrón de publicador suscriptor. Para poder utilizarlo necesitaremos definir un tópico o tema, en el que se publicarán los mensajes y al que se suscribirán las funciones que representan los servicios de ayuda. Para la creación del tópico ejecutaremos el siguiente comando:</p>
+<pre>user@192 ~ % gcloud pubsub topics create llamado_auxilio --message-retention-duration=1h</pre>
+<aside class="warning"><p>Arbitrariamente se define como nombre <code>llamado_auxilio</code> para el tema pero, si gusta puede cambiarlo. Si lo llega a cambiar, tenga presente que debe ajustar la referencia de este en las funciones de los servicios.</p>
+</aside>
+<p>A continuación se explica la configuración utilizada en el tema creado: </p>
+<table>
+<tr><td colspan="1" rowspan="1"><p><strong>Parámetro</strong></p>
+</td><td colspan="1" rowspan="1"><p><strong>Utilidad</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p><code>llamado_auxilio</code></p>
+</td><td colspan="1" rowspan="1"><p>Este valor hace referencia al nombre que le asignaremos al tema y con el que lo referenciaremos en posteriores usos </p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p><code>--message-retention</code></p>
+</td><td colspan="1" rowspan="1"><p>Nos permite configurar el tiempo máximo en que el mensaje se almacenará por el servicio antes de ser descartado.</p>
+</td></tr>
+</table>
+<aside class="special"><p>Si desea explorar más configuraciones que se pueden aplicar al tema, puede consultar el siguiente enlace: <a href="https://cloud.google.com/sdk/gcloud/reference/pubsub/topics/create" target="_blank">Comando creación topic</a></p>
+</aside>
+<p>Si la ejecución del comando es exitosa, deberá observar el siguiente mensaje en la consola de comandos: </p>
+<pre>Created topic [projects/...].</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Creación de las funciones" duration="4">
+        <h2 is-upgraded><strong>Función de notificación del ciudadano (publicador)</strong></h2>
+<p>La primera función que debemos crear, es la que se encargará de enviar el mensaje al tema creado previamente para representar un mensaje de auxilio.</p>
+<p>Publique la función que está en la carpeta <code>function-publicador-ciudadano-http</code> con el siguiente comando. No olvide especificar el nombre del proyecto en el que se encuentra trabajando:</p>
+<pre>user@192 ~ % gcloud functions deploy funcion-pubsub-tutorial-publicador-ciudadano --entry-point peticion_ayuda --runtime python39 --trigger-http --allow-unauthenticated --memory 128MB --region us-central1 --timeout 60 --min-instances 0 --max-instances 1 --set-env-vars TOPIC=llamado_auxilio,PROJECT_ID=PROJECT_ID</pre>
+<aside class="special"><p>Nota: Si tiene dudas de como realizar el proceso le recomendamos revisar el tutorial de Cloud Function</p>
+</aside>
+<h2 is-upgraded><strong>Funciones de servicios de ayuda (suscriptores)</strong></h2>
+<p>Las siguientes funciones que debemos crear, son las que representarán los servicios de ayuda. Estas funciones se encontrarán suscritas al tema creado anteriormente y se ejecutarán cuando se detecte un nuevo mensaje. </p>
+<p>Publique la función que está en la carpeta <code>function-suscriptor-bomberos</code> con el siguiente comando.</p>
+<pre>user@192 ~ % gcloud functions deploy funcion-pubsub-tutorial-suscriptor-bomberos --entry-point bomberos --runtime python39 --trigger-topic llamado_auxilio --allow-unauthenticated --memory 128MB --region us-central1 --timeout 60 --min-instances 0 --max-instances 1</pre>
+<p>Publique la función que está en la carpeta <code>function-suscriptor-liga</code> con el siguiente comando.</p>
+<pre>user@192 ~ % gcloud functions deploy funcion-pubsub-tutorial-suscriptor-liga --entry-point liga --runtime python39 --trigger-topic llamado_auxilio --allow-unauthenticated --memory 128MB --region us-central1 --timeout 60 --min-instances 0 --max-instances 1</pre>
+<p>Publique la función que está en la carpeta <code>function-suscriptor-policia</code> con el siguiente comando.</p>
+<pre>user@192 ~ % gcloud functions deploy funcion-pubsub-tutorial-suscriptor-policia --entry-point policia --runtime python39 --trigger-topic llamado_auxilio --allow-unauthenticated --memory 128MB --region us-central1 --timeout 60 --min-instances 0 --max-instances 1</pre>
+<p>La mayoría de los parámetros de configuración se mostraron en el tutorial &#34;Despliegue de funciones como servicio&#34;. Sin embargo, ahora el trigger que invocará a la función no será una petición http sino que se ejecutará cuando se detecte un mensaje en un tema específico. A continuación se explica el nuevo parámetro de configuración:</p>
+<table>
+<tr><td colspan="1" rowspan="1"><p><strong>Parámetro</strong></p>
+</td><td colspan="1" rowspan="1"><p><strong>Utilidad</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p><code>--trigger-topic</code></p>
+</td><td colspan="1" rowspan="1"><p>Especifica el nombre del tema de Pub/Sub al que se encuentra suscrita la función. Tenga en cuenta que no se permite especificar el de la forma projects/PROJECT_ID/topics/TOPIC_ID, solo se especifica el nombre del tema y se asume que el proyecto es el que se encuentra actualmente activo</p>
+</td></tr>
+</table>
+<p>Una vez termine de ejecutar los comandos, diríjase a la consola de Google Cloud Platform y en la sección de Cloud Functions deberá ver todas las funciones creadas anteriormente. </p>
+<p class="image-container"><img style="width: 601.70px" src="img/2abb7e518a5d117.png"></p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Verificar funcionamiento de la orquestación" duration="3">
+        <h2 is-upgraded><strong>Configuración de la prueba.</strong></h2>
+<p>Para poder realizar la prueba de las funciones, deberá importar la colección de Postman que se encuentra en la carpeta <code>collections</code> que se encuentra dentro del repositorio. Una vez la tenga importada, deberá configurar las variables para que pueda realizar las pruebas.</p>
+<aside class="special"><p>En la colección encontrará solo la petición hacia la función publicadora. Tenga en cuenta que la consumidora se debe llamar con el evento que genera Pub/Sub</p>
+</aside>
+<p>Para ello iremos a las opciones de la colección que acabamos de importar, seleccionaremos la opción &#34;editar&#34;</p>
+<p class="image-container"><img style="width: 570.00px" src="img/7e5d101964ed7900.png"></p>
+<p>Luego en la pestaña &#34;Variables&#34;, encontrará dos variables que debe configurar para la realización de la prueba. </p>
+<table>
+<tr><td colspan="1" rowspan="1"><p><strong>Variable </strong></p>
+</td><td colspan="1" rowspan="1"><p><strong>Descripción</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>id_project</p>
+</td><td colspan="1" rowspan="1"><p>Se establece el valor del identificador del proyecto en el que se encuentra trabajando y en donde realizó la publicación de las funciones. Recuerde que lo puede obtener en el panel principal del proyecto o ejecutando el comando de validación del proyecto (ver sección <a href="https://docs.google.com/document/d/1LIszN4lDgw2cNCUmxbZ3KWU5zLt7kOFWfpC7G2aiSxw/edit#heading=h.7zwpgee9napk" target="_blank">Validación del proyecto</a>).</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>region</p>
+</td><td colspan="1" rowspan="1"><p>Se debe establecer el valor de la región en donde se encuentra publicada la función. Eso lo puede obtener de función en la pestaña de &#34;Detalles&#34; o directamente del valor configurado en el parámetro <code>--region</code> de las opciones de despliegue. (Si no realizó ningún cambio al comando de publicación, la región será us-central1)</p>
+</td></tr>
+</table>
+<aside class="warning"><p>Para evitar posibles problemas, tenga en cuenta que los valores no deben tener espacios ni interlineados. </p>
+</aside>
+<h2 is-upgraded><strong>Ejecución de la prueba</strong></h2>
+<p>Para probar el funcionamiento del esquema propuesto, deberemos generar una llamada de auxilio como si fuéramos un ciudadano en problemas. Para esto nos dirigiremos a la colección de postman previamente importada y procederemos a realizar una solicitud para crear un mensaje en Pub/Sub. </p>
+<p class="image-container"><img style="width: 601.70px" src="img/f708340de462e1d9.png"></p>
+<p>Una vez creadas las tareas nos dirigimos a las funciones de los servicios de ayuda y seleccionaremos la pestaña &#34;Registro&#34;. Para cada una deberemos encontrar un mensaje indicando el llamado exitosa al servicio: </p>
+<ul>
+<li>Bomberos</li>
+</ul>
+<p class="image-container"><img style="width: 601.70px" src="img/e0de8b2b11cdc05d.png"></p>
+<ul>
+<li>Liga de héroes </li>
+</ul>
+<p class="image-container"><img style="width: 601.70px" src="img/8b8af5bd740ae92.png"></p>
+<ul>
+<li>Policía</li>
+</ul>
+<p class="image-container"><img style="width: 601.70px" src="img/a856c9a1871d581e.png"></p>
+<p>¡Éxitos en el desarrollo del tutorial y nos vemos en una próxima oportunidad!</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Referencias" duration="0">
+        <p>[1] <em>Cloud Tasks overview | Cloud Tasks Documentation | Google Cloud</em>. (s. f.). Google Cloud. <a href="https://cloud.google.com/tasks/docs/dual-overview" target="_blank">https://cloud.google.com/tasks/docs/dual-overview</a></p>
+<p>[2] <em>Quickstart for Cloud Tasks queues | Cloud Tasks Documentation | Google Cloud</em>. (s. f.). Google Cloud. <a href="https://cloud.google.com/tasks/docs/quickstart" target="_blank">https://cloud.google.com/tasks/docs/quickstart</a></p>
+<p>[3] <em>HTTP Functions | Cloud Functions Documentation | Google Cloud</em>. (s. f.). Google Cloud. <a href="https://cloud.google.com/functions/docs/writing/http" target="_blank">https://cloud.google.com/functions/docs/writing/http</a></p>
+
+
+      </google-codelab-step>
+    
+  </google-codelab>
+
+  <script src="https://storage.googleapis.com/claat-public/native-shim.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/custom-elements.min.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/prettify.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/codelab-elements.js"></script>
+  <script src="//support.google.com/inapp/api.js"></script>
+
+</body>
+</html>
