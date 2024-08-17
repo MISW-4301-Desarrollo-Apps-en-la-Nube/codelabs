@@ -1,0 +1,39 @@
+{
+  "environment": "web",
+  "format": "html",
+  "prefix": "https://storage.googleapis.com",
+  "mainga": "UA-49880327-14",
+  "updated": "2024-02-04T22:44:07Z",
+  "id": "dann-k8s-engine",
+  "duration": 30,
+  "title": "Kubernetes Engine: Desplegando clusters de aplicaciones mediante contenedores usando Kubernetes",
+  "authors": "Andrés Barón, Cesar Forero",
+  "summary": "En este CodeLab desplegamos un cluster utilizando kubernetes",
+  "source": "1Ic_Pqk1l4vrX6uwqv4e3ZHgacMNvT64wlMEDQq9ntlY",
+  "theme": "desarrollo-aplicaciones-nube",
+  "status": [
+    "published"
+  ],
+  "category": [
+    "desarrollo-aplicaciones-nube"
+  ],
+  "tags": [
+    "cds17",
+    "chrome-dev-summit-2016",
+    "devfest18",
+    "gdd17",
+    "io2016",
+    "io2017",
+    "io2018",
+    "io2019",
+    "jsconfeu",
+    "kiosk",
+    "pwa-dev-summit",
+    "pwa-roadshow",
+    "tag-web",
+    "typtwd17",
+    "web"
+  ],
+  "feedback": "https://github.com/googlecodelabs/your-first-pwapp/issues",
+  "url": "dann-k8s-engine"
+}

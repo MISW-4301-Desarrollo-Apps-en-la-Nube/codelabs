@@ -1,0 +1,242 @@
+
+<!doctype html>
+
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <meta name="theme-color" content="#4F7DC9">
+  <meta charset="UTF-8">
+  <title>Kubernetes Engine: Desplegando clusters de aplicaciones mediante contenedores usando Kubernetes</title>
+  <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Source+Code+Pro:400|Roboto:400,300,400italic,500,700|Roboto+Mono">
+  <link rel="stylesheet" href="//fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://storage.googleapis.com/claat-public/codelab-elements.css">
+  <style>
+    .success {
+      color: #1e8e3e;
+    }
+    .error {
+      color: red;
+    }
+  </style>
+</head>
+<body>
+  <google-codelab-analytics gaid="UA-49880327-14"></google-codelab-analytics>
+  <google-codelab codelab-gaid=""
+                  id="dann-k8s-engine"
+                  title="Kubernetes Engine: Desplegando clusters de aplicaciones mediante contenedores usando Kubernetes"
+                  environment="web"
+                  feedback-link="https://github.com/googlecodelabs/your-first-pwapp/issues">
+    
+      <google-codelab-step label="Introducción" duration="2">
+        <h2 is-upgraded><strong>Objetivos</strong></h2>
+<p>Al finalizar el tutorial el estudiante estará en capacidad de:</p>
+<ul>
+<li>Desplegar una aplicación basada en contenedores ubicada en un repositorio privado mediante Kubernetes.</li>
+<li>Montar una red privada virtual.</li>
+</ul>
+<h2 is-upgraded><strong>Pasos previos</strong></h2>
+<p>En particular se utilizarán los siguientes recursos: </p>
+<ol type="1" start="1">
+<li>Repositorio privado con la imagen de contenedor de la aplicación suma, el cual fue publicado en el tutorial <strong>Container Registry</strong>. Por favor realice ese tutorial antes de continuar con el desarrollo de esta guía.</li>
+<li> gcloud SDK para acceder a los servicios del proveedor Google Cloud Platform a partir de la consola. En caso de no tenerla instalada puede consultar el siguiente manual de instalación:<a href="https://cloud.google.com/sdk/docs/install" target="_blank">https://cloud.google.com/sdk/docs/install</a></li>
+<li>Herramienta de control de Kubernetes, kubectl. En caso de no tenerla instalada puede consultar el siguiente manual de instalación:<a href="https://kubernetes.io/docs/tasks/tools/" target="_blank">https://kubernetes.io/docs/tasks/tools/</a></li>
+</ol>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Kubernetes" duration="3">
+        <p>Kubernetes es una plataforma portable y extensible de código abierto para administrar cargas de trabajo y servicios. Kubernetes facilita la automatización y la configuración declarativa. Tiene un ecosistema grande y en rápido crecimiento. El soporte, las herramientas y los servicios para Kubernetes están ampliamente disponibles. <strong>[1]</strong></p>
+<p>Kubernetes ofrece un entorno de administración centrado en contenedores. Kubernetes orquesta la infraestructura de cómputo, redes y almacenamiento para que las cargas de trabajo de los usuarios no tengan que hacerlo. Esto ofrece la simplicidad de las Plataformas como Servicio (PaaS) con la flexibilidad de la Infraestructura como Servicio (IaaS) y permite la portabilidad entre proveedores de infraestructura. <strong>[1]</strong></p>
+<p>Kubernetes no es una Plataforma como Servicio (PaaS) convencional. Ya que Kubernetes opera a nivel del contenedor y no a nivel del hardware, ofrece algunas características que las PaaS también ofrecen, como deployments, escalado, balanceo de carga, registros y monitoreo. Dicho esto, Kubernetes no es monolítico y las soluciones que se ofrecen de forma predeterminada son opcionales e intercambiables. <strong>[1]</strong></p>
+<p>Kubernetes ofrece los elementos esenciales para construir una plataforma para desarrolladores, preservando la elección del usuario y la flexibilidad en las partes más importantes.</p>
+<p>Con ello en mente, Kubernetes:</p>
+<ul>
+<li>No limita el tipo de aplicaciones que soporta. Kubernetes busca dar soporte a un número diverso de cargas de trabajo, que incluyen aplicaciones con y sin estado, así como aplicaciones que procesan datos. Si la aplicación puede correr en un contenedor, debería correr bien en Kubernetes.</li>
+<li>No hace deployment de código fuente ni compila la aplicación. Los flujos de integración, entrega y deployment continuo (CI/CD) vienen determinados por la cultura y preferencia organizacional y sus requerimientos técnicos.</li>
+<li>No provee servicios en capa de aplicación como middleware (por ejemplo, buses de mensaje), frameworks de procesamiento de datos (como Spark), bases de datos (como MySQL), caches o sistemas de almacenamiento (como Ceph). Es posible correr estas aplicaciones en Kubernetes, o acceder a éstas desde una aplicación usando un mecanismo portable como el Open Service Broker.</li>
+<li>No dictamina las soluciones de registros, monitoreo o alerta que se deben usar. Hay algunas integraciones que se ofrecen como prueba de concepto, y existen mecanismos para recolectar y exportar métricas.</li>
+<li>No provee ni obliga a usar un sistema o lenguaje de configuración (como jsonnet) sino que ofrece una API declarativa que puede ser usada con cualquier forma de especificación declarativa</li>
+<li>No provee ni adopta un sistema exhaustivo de mantenimiento, administración o corrección automática de errores.<strong> [1]</strong></li>
+</ul>
+<p>Existen diversos proveedores que suministran un servicio para crear un clúster de Kubernetes en la nube, entre ellos, por ejemplo: Amazon Web Services (AWS) y su servicio Elastic Kubernetes Service, Google Cloud Platform (GCP) con su servicio de Kubernetes Engine y Azure con su servicio de Azure Kubernetes Service.</p>
+<p>En este tutorial vamos a desplegar un clúster de Kubernetes mediante el servicio autoadministrado Google Kubernetes Engine con la configuración Autopilot.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Clonar repositorio" duration="2">
+        <p>Para este tutorial manejaremos el repositorio de calculadora-numeros usado en los tutoriales pasados, en caso de no tenerlo clonado aún, puede consultarlo en el siguiente <a href="https://github.com/MISW-4301-Desarrollo-Apps-en-la-Nube/calculadora-numeros" target="_blank">enlace</a>. Trabajaremos sobre la rama <a href="https://github.com/MISW-4301-Desarrollo-Apps-en-la-Nube/calculadora-numeros/tree/feature/kubernetes-sum" target="_blank">feature/kubernetes-sum</a>, para ello cambie la rama del repositorio actual al respectivo hash del tag, para hacerlo ejecute en su terminal:</p>
+<pre>user@192 ~ % git checkout feature/kubernetes-sum</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Habilitación de APIs" duration="1">
+        <p>Acceda a la consola de Google Cloud Platform y habilite la siguiente API: <strong>Kubernetes Engine API</strong>. Para ello, haga clic en el panel de servicios y seleccione la opción: <strong>Kubernetes Engine </strong>bajo la categoría de <strong>PROCESAMIENTO.</strong></p>
+<p class="image-container"><img style="width: 624.00px" src="img/a08459bd4f5e3b0b.png"></p>
+<p class="image-container"><img style="width: 624.00px" src="img/2048715414793932.png"></p>
+<p>Tan pronto habilite las dos API, estaremos listos para desplegar el clúster de Kubernetes sobre el servicio Google Kubernetes Engine.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Creación de la red virtual" duration="5">
+        <p>Para la conexión del cluster vamos a utilizar un red virtual de direcciones privadas. Las redes virtuales permiten la comunicación entre los componentes de Kubernetes y otras aplicaciones. Para crear la red utilice el siguiente comando en Cloud Shell.</p>
+<aside class="special"><p>Reemplace <code><ID-PROYECTO></code> por el id de su proyecto.</p>
+</aside>
+<p>Para crear una red virtual, el comando se ve de la siguiente forma:</p>
+<pre>user@192 ~ % gcloud compute networks create &lt;RED&gt; --project=&lt;ID-PROYECTO&gt; --subnet-mode=custom --mtu=&lt;MTU&gt; --bgp-routing-mode=regional</pre>
+<p>Donde:</p>
+<ol type="1" start="1">
+<li><strong>Mtu</strong>: Corresponde a la unidad de transmisión máxima de una conexión de red, en bytes, del mayor paquete permitido que se puede transferir a través de la conexión.</li>
+<li><strong>Bgp-routing-mode</strong>: Corresponde al modo de enrutamiento dinámico de una red de VPC, ya sea regional o global.</li>
+</ol>
+<p>Para el caso del ejemplo:</p>
+<pre>user@192 ~ % gcloud compute networks create vpn-tutoriales-misw --project=uandes-native --subnet-mode=custom --mtu=1460 --bgp-routing-mode=regional</pre>
+<h2 is-upgraded><strong>Subred para kubernetes</strong></h2>
+<p>Una subred, o subred, es una pieza segmentada de una red más grande. Más específicamente, las subredes son una partición lógica de una red IP en varios segmentos de red más pequeños. Para crear la subred que se utilizará en el cluster de kubernetes, ejecute el comando:</p>
+<pre>user@192 ~ % gcloud compute networks subnets create &lt;NOMBRE-SUBRED&gt; --range=&lt;RANGO-IP&gt; --network=&lt;RED-PADRE&gt; --region=&lt;REGION&gt; --project=&lt;ID-PROYECTO&gt;</pre>
+<p>Para el caso del ejemplo:</p>
+<pre>user@192 ~ % gcloud compute networks subnets create red-k8s-tutoriales --range=192.168.32.0/19 --network=vpn-tutoriales-misw --region=us-central1 --project=uandes-native</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Despliegue del clúster en Google Kubernetes Engine." duration="5">
+        <p>Ya con la API activa, vamos a desplegar el clúster mediante la consola de administración web de Google Cloud Platform. Para ello, en el menú de navegación del panel izquierdo seleccione la opción <strong>Kubernetes Engine</strong> y posteriormente la opción <strong>Clústeres</strong>.</p>
+<p class="image-container"><img style="width: 430.00px" src="img/6aaffefc812d10ff.png"></p>
+<p>Seguidamente se desplegará una lista con todos los clústeres que se hayan creado. Para crear uno nuevo haga clic en la opción <strong>Crear </strong>y posteriormente seleccione la opción <strong>GKE Autopilot</strong>.</p>
+<p>El servicio de Autopilot se encargará de administrar los nodos de trabajos de manera automática dependiendo de las necesidades de carga que se registren. Si desea consultar más información, por favor consulte la referencia <a href="https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview" target="_blank"><strong>[2]</strong></a>.</p>
+<aside class="special"><p>En este tutorial usamos el modo <strong>Autopilot</strong> por simplicidad del ejercicio y delegar la gestión y configuración enteramente al proveedor de nube. Sin embargo, puede hacer uso del modo <strong>GKE Standard</strong> y hacer la configuración del cluster si tiene experiencia en ello.</p>
+</aside>
+<p class="image-container"><img style="width: 613.00px" src="img/abd6ed11c847b312.png"></p>
+<p class="image-container"><img style="width: 624.00px" src="img/5e939a7399c1c813.png"></p>
+<p>Seguidamente ingrese el nombre del clúster y configúrelo como un clúster público, en este ejemplo emplearemos como nombre de clúster <strong>uniandes-misw-cloud-native-k8s</strong>. Utilice las configuraciones de red de la segunda imagen.</p>
+<p class="image-container"><img style="width: 624.00px" src="img/2b0ff6747588426c.png"></p>
+<p>Utilice una configuración de red (Recuerde que estas redes se crearon en pasos anteriores)  con la siguiente información:</p>
+<ul>
+<li>Red: vpn-tutoriales-misw</li>
+<li>Subred del nodo: red-k8s-tutoriales</li>
+<li>Rango de direcciones del pod: 192.168.64.0/21</li>
+<li>Rango de direcciones del servicio: 192.168.72.0/21</li>
+</ul>
+<p class="image-container"><img style="width: 529.00px" src="img/38ae0d7fd2668301.png"></p>
+<p>Finalmente, haz clic en el botón <strong>Crear</strong>. Con ello empezará a aprovisionarse el clúster, el tiempo de duración de este proceso es de aproximadamente 10 minutos.</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Conexión al clúster mediante las herramientas kubectl y gcloud SDK" duration="2">
+        <p>Tan pronto el clúster se encuentre disponible podremos conectarnos a él mediante el SDK de gcloud. Para ello, despliegue el menú de opciones disponible sobre el nombre del clúster que creamos en la actividad anterior y seleccione la opción <strong>ESTABLECER CONEXIÓN. </strong>Posteriormente ejecute la instrucción de conexión en la terminal de su máquina haciendo uso del SDK gcloud.</p>
+<p class="image-container"><img style="width: 624.00px" src="img/8c4130f68d9cf100.png"></p>
+<p class="image-container"><img style="width: 624.00px" src="img/55afd80bd08a527f.png"></p>
+<p>Al ejecutarlo localmente en su terminal debería ver lo siguiente:</p>
+<pre>user@192 ~ % gcloud container clusters get-credentials uniandes-misw-cloud-native-k8s --region us-central1 --project uandes-native</pre>
+<aside class="warning"><p>En el caso que presente un error que indique que no tiene el plugin gke-gcloud-auth-plugin, lo puede instalar por medio del comando <strong>gcloud components install gke-gcloud-auth-plugin  </strong></p>
+</aside>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Configuración y despliegue de la imagen de contenedor a emplear" duration="5">
+        <p>En el tutorial pasado sobre <strong>Container Registry</strong> construimos la imagen de contenedor de la aplicación y la almacenamos en un repositorio privado empleando el servicio <strong>Artifact Registry</strong>. En esta ocasión, vamos a desplegar el contenedor de la aplicación a partir de esa imagen. Para ello, ingrese al servicio <strong>Artifact Registry</strong> y copie la URI de acceso y el tag de la imagen.</p>
+<p class="image-container"><img style="width: 624.00px" src="img/3897bbcf990b6eb4.png"></p>
+<p>Posteriormente configure el archivo <strong>k8s-service.yml que se encuentra dentro de la carpeta suma </strong>cambiando el comodín <em>&lt;image&gt;</em> (ubicado en la línea 38) por la URI de su repositorio privado y el tag de la imagen.</p>
+<p class="image-container"><img style="width: 624.00px" src="img/6de2dceba46b98c6.png"></p>
+<p>Antes de ejecutarlo, revisemos un poco su configuración.</p>
+<ul>
+<li>En la línea 6 estamos configurando un despliegue (suma). El cual describe las contenedoras que tendrá nuestro pod. La aplicación estará escuchando por el puerto 8000.</li>
+<li>En la línea 54 estamos configurando un service (servicio-suma), el cual creará un balanceador de carga y enrutará las peticiones del puerto 80 al puerto 4000.</li>
+</ul>
+<p>Para culminar, construya el despliegue a partir del archivo yml ejecutando la instrucción:</p>
+<pre>user@192 ~ % kubectl apply -f k8s-service.yml</pre>
+<p>Este archivo contiene la definición de los contenedores que serán desplegados dentro de un pod así como la definición de los servicios para la comunicación de estos con otras redes y distribución de la carga entrante. Para verificar el estado de un despliegue puede emplear las instrucciones <strong>kubectl get pods</strong>, <strong>kubectl get services</strong> y <strong>kubectl get deployments.</strong></p>
+<ol type="1" start="1">
+<li><strong>kubectl get pods:</strong></li>
+</ol>
+<p>Es un  comando que se usa para recuperar información de un clúster de Kubernetes en su máquina local. Esto incluye todos los pods, implementaciones, servicios y ReplicationControllers.</p>
+<pre>user@192 ~ % kubectl get pods
+W1112 16:21:42.982225    9346 gcp.go:120] WARNING: the gcp auth plugin is deprecated in v1.22+, unavailable in v1.25+; use gcloud instead.
+To learn more, consult https://cloud.google.com/blog/products/containers-kubernetes/kubectl-auth-changes-in-gke
+NAME                                   READY   STATUS    RESTARTS   AGE
+suma-7d9454d9f5-x2bqc   1/1     Running   0          6m57s</pre>
+<ol type="1" start="2">
+<li><strong>kubectl get services</strong></li>
+</ol>
+<p>Este comando muestra información asociada a los pods y el despliegue en sí de los servicios, puede ver información como la IP del cluster, el tipo de servicio, puertos, etc.</p>
+<pre>user@192 ~ % kubectl get services
+W1112 16:22:40.238125    9366 gcp.go:120] WARNING: the gcp auth plugin is deprecated in v1.22+, unavailable in v1.25+; use gcloud instead.
+To learn more, consult https://cloud.google.com/blog/products/containers-kubernetes/kubectl-auth-changes-in-gke
+NAME                       TYPE           CLUSTER-IP       EXTERNAL-IP      PORT(S)        AGE
+suma                       LoadBalancer   192.168.73.177   </pre>
+<p>34.172.15.158</p>
+<pre>   80:31632/TCP   32m
+kubernetes                 ClusterIP      192.168.72.1     &lt;none&gt;           443/TCP        5h16m</pre>
+<ol type="1" start="3">
+<li> <strong>kubectl get deployments.</strong></li>
+</ol>
+<p>Este comando muestra información acerca de los despliegues, número de pods disponibles y cuantos de estos están corriendo, entre otros datos relevantes.</p>
+<pre>user@192 ~ % kubectl get deployments
+W1112 16:23:57.990528    9399 gcp.go:120] WARNING: the gcp auth plugin is deprecated in v1.22+, unavailable in v1.25+; use gcloud instead.
+To learn more, consult https://cloud.google.com/blog/products/containers-kubernetes/kubectl-auth-changes-in-gke
+NAME                  READY   UP-TO-DATE   AVAILABLE   AGE
+Suma                  1/1     1            1           9m12s
+</pre>
+<p>Si desea leer mas al respecto consulte el siguiente link <a href="https://kubernetes.io/docs/reference/kubectl/" target="_blank">https://kubernetes.io/docs/reference/kubectl/</a> </p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Troubleshooting" duration="0">
+        <p>En caso de errores con el despliegue revise el estado de sus pods con los comandos</p>
+<pre>user@192 ~ % kubectl describe pod &lt;nombre del pod&gt;
+user@192 ~ % kubectl logs &lt;nombre del pod&gt; --all-containers
+user@192 ~ % kubectl get events</pre>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Pruebas del despliegue" duration="5">
+        <p>Note que al ejecutar el comando <strong>kubectl get services, </strong>se obtuvo una IP externa, esta corresponde al balanceador de carga que es el punto de entrada a los pods contenidos dentro del cluster. En el caso del ejemplo corresponde a 34.172.15.158, corriendo en el puerto 80. Para probar que el despliegue está funcionando, identifique su IP externa y reemplazarla en el siguiente curl:</p>
+<pre>user@192 ~ % curl --location --request POST &#39;http://&lt;IP-BALANCEADOR&gt;:&lt;PUERTO&gt;/suma&#39; \
+--header &#39;Content-Type: application/json&#39; \
+--data-raw &#39;{
+    &#34;num_1&#34;: 399,
+    &#34;num_2&#34;: 1
+}&#39;</pre>
+<p>Para el caso del ejemplo corresponde a:</p>
+<pre>user@192 ~ % curl --location --request POST &#39;http://34.172.15.158:80/suma&#39; \
+--header &#39;Content-Type: application/json&#39; \
+--data-raw &#39;{
+    &#34;num_1&#34;: 399,
+    &#34;num_2&#34;: 1
+}&#39;</pre>
+<p>Obteniendo el resultado:</p>
+<pre>{
+    &#34;message&#34;: &#34;Estudiante la suma de los dos numeros es: 400&#34;,
+    &#34;result&#34;: 400
+}</pre>
+<p>Puede observar el despliegue, entrando a la consola de GCP en el servicio <strong>Kubernetes Engine &gt; Cargas de trabajo</strong></p>
+<p>¡Éxitos en el desarrollo del tutorial y nos vemos en una próxima oportunidad!</p>
+
+
+      </google-codelab-step>
+    
+      <google-codelab-step label="Referencias" duration="0">
+        <p>[1] «Qué es Kubernetes», [Online]. Disponible en:<a href="https://kubernetes.io/es/docs/concepts/overview/what-is-kubernetes/" target="_blank">https://kubernetes.io/es/docs/concepts/overview/what-is-kubernetes/</a> .</p>
+<p>[2] «Descripción general de Autopilot  |  Documentación de Kubernetes Engine  |  Google Cloud». [Online]. Disponible en:<a href="https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview" target="_blank">https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview</a></p>
+
+
+      </google-codelab-step>
+    
+  </google-codelab>
+
+  <script src="https://storage.googleapis.com/claat-public/native-shim.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/custom-elements.min.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/prettify.js"></script>
+  <script src="https://storage.googleapis.com/claat-public/codelab-elements.js"></script>
+  <script src="//support.google.com/inapp/api.js"></script>
+
+</body>
+</html>
