@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
   <meta name="theme-color" content="#4F7DC9">
   <meta charset="UTF-8">
-  <title>GCP Cloud Task: Patrón Productor/Consumidor usando funciones y colas de tareas</title>
+  <title>GCP Cloud Task: Patrón Productor/Consumidor usando colas de tareas</title>
   <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Source+Code+Pro:400|Roboto:400,300,400italic,500,700|Roboto+Mono">
   <link rel="stylesheet" href="//fonts.googleapis.com/icon?family=Material+Icons">
   <link rel="stylesheet" href="https://storage.googleapis.com/claat-public/codelab-elements.css">
@@ -23,7 +23,7 @@
   <google-codelab-analytics gaid="UA-49880327-14"></google-codelab-analytics>
   <google-codelab codelab-gaid=""
                   id="dann-queues"
-                  title="GCP Cloud Task: Patrón Productor/Consumidor usando funciones y colas de tareas"
+                  title="GCP Cloud Task: Patrón Productor/Consumidor usando colas de tareas"
                   environment="web"
                   feedback-link="https://github.com/googlecodelabs/your-first-pwapp/issues">
     
@@ -32,7 +32,8 @@
 <p>Al finalizar el tutorial el estudiante estará en capacidad de:</p>
 <ul>
 <li>Orquestar un conjunto de microservicios de manera asíncrona empleando colas de mensajería.</li>
-<li>Crear y configurar el servicio de Cloud Task para orquestar llamados de Cloud Function</li>
+<li>Crear y configurar el servicio de Cloud Task para orquestar llamados de Cloud Function y Kubernetes</li>
+<li>Desplegar una aplicación basada en contenedores mediante Kubernetes.</li>
 </ul>
 <h2 is-upgraded><strong>Requisitos para desarrollar el tutorial</strong></h2>
 <p>En particular se utilizarán los siguientes recursos: </p>
@@ -41,6 +42,7 @@
 <li>Instalación y configuración para desarrollo en Python. En caso de no tenerlo instalado o correctamente configurado, a continuación se muestra el manual de instalación y configuración: <a href="https://cloud.google.com/python/docs/setup#windows" target="_blank">Configura un entorno de desarrollo de Python | Google Cloud</a></li>
 <li>Contar con un editor o IDE para manipular de manera correcta el código. Se recomienda trabajar con Visual Studio Code, pero puede usar el editor de su preferencia. A continuación se muestran los pasos de instalación de Visual Studio Code: <a href="https://code.visualstudio.com/" target="_blank">Visual Studio Code - Code Editing. Redefined</a></li>
 <li>Contar con gcloud SDK para acceder a los servicios del proveedor Google Cloud Platform a partir de la consola. En caso de no tenerla instalada puede consultar el siguiente manual de instalación: <a href="https://cloud.google.com/sdk/docs/install" target="_blank">Instalación de SDK de Cloud | Google Cloud</a></li>
+<li>Herramienta de control de Kubernetes, kubectl. En caso de no tenerla instalada puede consultar el siguiente manual de instalación:<a href="https://kubernetes.io/docs/tasks/tools/" target="_blank">https://kubernetes.io/docs/tasks/tools/</a></li>
 </ol>
 
 
@@ -56,11 +58,15 @@
 
       </google-codelab-step>
     
-      <google-codelab-step label="Preparación del proyecto" duration="2">
-        <h2 is-upgraded><strong>Clonar el repositorio.</strong></h2>
+      <google-codelab-step label="Preparación del proyecto" duration="5">
+        <h2 is-upgraded><strong>Preparar ambiente</strong></h2>
+<p>Para este codelab se requiere un cluster de Kubernetes previamente creado y sin contenedores en ejecución. Para asegurarnos que no hay contenedores ejecutándose en el cluster puede destruir los despliegues y servicios usando el siguiente comando:</p>
+<pre>kubectl delete all --all -n default
+</pre>
+<h2 is-upgraded><strong>Clonar el repositorio.</strong></h2>
 <p>El código de la aplicación lo encuentra en el siguiente repositorio de GitHub <a href="https://github.com/MISW-4301-Desarrollo-Apps-en-la-Nube/gcp-das-cloud-task" target="_blank">gcp-cloud-task</a></p>
-<p>En el repositorio va a encontrar dos funciones.</p>
-<p>La primera se encuentra en la carpeta &#34;function-consumir-http&#34; y cuenta con la siguiente definición del servicio.</p>
+<p>En el repositorio va a encontrar dos funciones y un servidor de Flask que será desplegado en un cluster de Kubernetes.</p>
+<p>La primera función se encuentra en la carpeta &#34;function-consumir-http&#34; y cuenta con la siguiente definición del servicio.</p>
 <table>
 <tr><td colspan="1" rowspan="1"></td><td colspan="1" rowspan="1"><p><strong>/</strong></p>
 </td></tr>
@@ -77,7 +83,7 @@
 </td><td colspan="1" rowspan="1"><p><strong>application/json</strong>, no necesita una entrada concreta o específica.</p>
 </td></tr>
 </table>
-<p>La segunda se encuentra en la carpeta &#34;function-producir-http&#34; y cuenta con la siguiente definición del servicio.</p>
+<p>La segunda función se encuentra en la carpeta &#34;function-producir-http&#34; y cuenta con la siguiente definición del servicio.</p>
 <table>
 <tr><td colspan="1" rowspan="1"><p><strong>Endpoint</strong></p>
 </td><td colspan="1" rowspan="1"><p><strong>/</strong></p>
@@ -95,8 +101,27 @@
 </td><td colspan="1" rowspan="1"><p><strong>application/json</strong>, no necesita una entrada concreta o específica.</p>
 </td></tr>
 </table>
+<p>Por último, el servidor de Flask se encuentra en la carpeta &#34;service-producir-http&#34; y cuenta con la siguiente definición del servicio.</p>
+<table>
+<tr><td colspan="1" rowspan="1"><p><strong>Endpoint</strong></p>
+</td><td colspan="1" rowspan="1"><p><strong>/enqueue</strong></p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Descripción</p>
+</td><td colspan="1" rowspan="1"><p>Retorna la información de una tarea creada. </p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Método</p>
+</td><td colspan="1" rowspan="1"><p>POST</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Retorno</p>
+</td><td colspan="1" rowspan="1"><p><strong>application/json</strong>. Objeto con la información básica de la tarea creada</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>Body de la petición</p>
+</td><td colspan="1" rowspan="1"><p><strong>application/json</strong>, no necesita una entrada concreta o específica.</p>
+</td></tr>
+</table>
 <h2 is-upgraded><strong>Dinámica del ejercicio.</strong></h2>
-<p>Para el ejercicio se necesitaran dos funciones. La primera función se ejecutará con una petición HTTP de tipo POST con el contenido de un mensaje, que enviará una tarea a una cola de mensajes para procesar posteriormente. Una vez cargado el mensaje, el servicio de Cloud Task se encargará de notificar a una segunda función para que reciba el mensaje y muestre su contenido en el log de la aplicación. A continuación se muestra el diagrama de secuencia del proceso.</p>
+<p>Para el ejercicio se necesitaran dos funciones y un servidor de Flask desplegado en un cluster de Kubernetes. La primera función se ejecutará con una petición HTTP de tipo POST con el contenido de un mensaje, que enviará una tarea a una cola de mensajes para procesar posteriormente. De igual forma, el servidor de Flask expondrá un endpoint HTTP de tipo POST que permitirá a un usuario realizar el mismo procedimiento de encolamiento.</p>
+<p>Una vez cargado un mensaje ya sea por medio de la función o el servidor de Flask, el servicio de Cloud Task se encargará de notificar a una segunda función para que reciba el mensaje y muestre su contenido en el log de la aplicación. A continuación se muestra el diagrama de secuencia del proceso.</p>
 <p class="image-container"><img style="width: 601.70px" src="img/cf4494d3df7668e1.png"></p>
 <p>Cloud Tasks nos permite implementar el patrón de productor/consumidor y tener control sobre los inicios de ejecución de las tareas y las políticas de reintento en caso de fallas. En particular podemos agendar una tarea para ser ejecutada hasta 30 días en el futuro.</p>
 
@@ -108,6 +133,8 @@
 <p class="image-container"><img style="width: 601.70px" src="img/3614170573dd279c.png"></p>
 <p>En la carpeta <strong>function-producir-http</strong> encontrará un archivo main.py el cual contiene la función producir. Esta función hace uso de la librería <strong>google-cloud-tasks</strong> para crear la conexión con la cola de tareas (línea 22), construye una tarea con la información que deseamos enviar (línea 25) y realiza la publicación de la tarea en la cola de tareas (línea 36).</p>
 <p class="image-container"><img style="width: 601.70px" src="img/a877de002d0747cd.png"></p>
+<p>De forma similar, en la carpeta <strong>servidor-producir-http</strong> encontrará un servidor de Flask en la subcarpeta <strong>src </strong>que al igual que la función productora utiliza la librería <strong>google-cloud-tasks</strong> para crear la conexión con la cola y construir una nueva tarea (línea 28). Finalmente en la carpeta <strong>k8s </strong>se encuentran los archivos .yml necesarios para desplegar este servidor en un cluster de Kubernetes haciendo uso de una imagen de docker previamente desplegada en un container registry público.</p>
+<p class="image-container"><img style="width: 601.70px" src="img/39e0d092af52000a.png"></p>
 
 
       </google-codelab-step>
@@ -206,10 +233,40 @@
 
       </google-codelab-step>
     
+      <google-codelab-step label="Creación de servicio de Kubernetes" duration="0">
+        <p>Como se mencionó anteriormente dentro de la carpeta <strong>servidor-producir-http/k8s </strong>se encuentran los archivos .yml para desplegar el servidor de Flask en un cluster de Kubernetes, específicamente se encuentran los siguientes 3 archivos:</p>
+<ul>
+<li><strong>k8s-service.yml:</strong> Contiene el service y deployment que permitirán la ejecución y acceso al servidor.</li>
+<li><strong>k8s-secrets.yml:</strong> Contiene las variables de entorno que requiere el servidor para funcionar.</li>
+<li><strong>k8s-serviceaccount.yml:</strong> Cuenta de servicio que contiene los roles asignados al servidor.</li>
+</ul>
+<h2 is-upgraded><strong>Configuración de los secrets</strong></h2>
+<p>Para poder realizar la conexión con Cloud Task se requiere especificar el PROJECT_ID y QUEUE_ID de la cola a la cual se quiere acceder, estos valores se obtienen de los secrets de Kubernetes especificados en <strong>k8s-secrets.yml</strong>, por lo cual debe modificar los valores de este archivo antes de crear los recursos.</p>
+<p class="image-container"><img style="width: 259.50px" src="img/698cd18b1fd69830.png"></p>
+<h2 is-upgraded><strong>Desplegar el servidor</strong></h2>
+<p>Para crear los recursos de Kubernetes especificados anteriormente debe ejecutar en la raíz del repositorio el siguiente comando:</p>
+<pre>kubectl apply -f ./servidor-producir-http/k8s/k8s-secrets.yml</pre>
+<p>Con el propósito de confirmar la creación correcta de los recursos puede listar los pods disponibles y una vez finalizado el proceso debería verlos en estado <strong>Running.</strong></p>
+<p class="image-container"><img style="width: 601.70px" src="img/eecee11ec2027988.png"></p>
+<p>Finalmente, para confirmar la IP donde se va a acceder el servidor debe listar los services disponibles en el cluster y obtener el external IP.</p>
+<p class="image-container"><img style="width: 601.70px" src="img/8dd73f3a0cac000a.png"></p>
+<h2 is-upgraded><strong>Cuenta de servicio del servidor</strong></h2>
+<p>El servidor para poder crear una nueva tarea en Cloud Task requiere de permisos especiales por medio del rol que fue asignado a la cuenta de servicio creada anteriormente (<strong>misw-das-productor</strong>). Para especificar que el servidor debe usar esta cuenta de servicio se creó un recurso de Kubernetes llamado <code>ServiceAccount</code> el cual está especificado en el archivo <strong>k8s-serviceaccount.yml </strong>y es utilizado en <strong>k8s-service.yml</strong> (línea 19).</p>
+<p class="image-container"><img style="width: 494.65px" src="img/4034d46775863a90.png"></p>
+<p>Aunque al ejecutar el commando <code>kubectl apply</code> se creó este recurso es necesario ligarlo con el que fue creado en IAM para ello debes ejecutar el siguiente comando el cual crea una política de permisos de IAM que otorga a la cuenta de servicio de Kubernetes acceso para actuar en nombre de la cuenta de servicio de IAM:</p>
+<pre>user@192 ~ % gcloud iam service-accounts add-iam-policy-binding misw-das-productor@&lt;id_proyecto&gt;.iam.gserviceaccount.com \ --role roles/iam.workloadIdentityUser \ --member &#34;serviceAccount:&lt;id_proyecto&gt;.svc.id.goog[default/misw-das-productor]&#34;</pre>
+<p>Luego, debemos anotar la cuenta de servicio de Kubernetes para que GKE vea el vínculo con la cuenta de servicio de IAM:</p>
+<pre>user@192 ~ % kubectl annotate serviceaccount misw-das-productor \ --namespace default \ iam.gke.io/gcp-service-account=misw-das-productor@&lt;id_proyecto&gt;.iam.gserviceaccount.com</pre>
+<p>Finalmente para que el servidor tome esta nueva configuración debemos reiniciar el deployment de Kubernetes:</p>
+<pre>user@192 ~ % kubectl rollout restart deployment productor</pre>
+
+
+      </google-codelab-step>
+    
       <google-codelab-step label="Verificar funcionamiento de la orquestación" duration="3">
         <h2 is-upgraded><strong>Configuración de la prueba.</strong></h2>
 <p>Para poder realizar la prueba de las funciones, deberá importar la colección de Postman que se encuentra en la carpeta <code>collections</code> que se encuentra dentro del repositorio. Una vez la tenga importada, deberá configurar las variables para que pueda realizar las pruebas. </p>
-<aside class="special"><p>En la colección encontrará solo la petición hacia la función productora. Tenga en cuenta que la consumidora se debe llamar con las tareas del Cloud Task</p>
+<aside class="special"><p>En la colección encontrará dos peticiones, una hacia la función productora y otra hacia el servidor de Flask desplegado en el clúster de Kubernetes. Tenga en cuenta que la consumidora se llamará con las tareas del Cloud Task.</p>
 </aside>
 <p>Para ello iremos a las opciones de la colección que acabamos de importar, seleccionaremos la opción &#34;editar&#34;</p>
 <p class="image-container"><img style="width: 562.00px" src="img/477c0a7ba5c4d216.png"></p>
@@ -219,10 +276,13 @@
 </td><td colspan="1" rowspan="1"><p><strong>Descripción</strong></p>
 </td></tr>
 <tr><td colspan="1" rowspan="1"><p>id_project</p>
-</td><td colspan="1" rowspan="1"><p>Se establece el valor del identificador del proyecto en el que se encuentra trabajando y en donde realizó la publicación de las funciones. Recuerde que lo puede obtener en el panel principal del proyecto o ejecutando el comando de validación del proyecto (ver sección <a href="https://docs.google.com/document/d/1LIszN4lDgw2cNCUmxbZ3KWU5zLt7kOFWfpC7G2aiSxw/edit#heading=h.7zwpgee9napk" target="_blank">Validación del proyecto</a>).</p>
+</td><td colspan="1" rowspan="1"><p>Se establece el valor del identificador del proyecto en el que se encuentra trabajando y en donde realizó la publicación de las funciones. Recuerde que lo puede obtener en el panel principal del proyecto o ejecutando el comando de validación del proyecto (ver sección Validación del proyecto).</p>
 </td></tr>
 <tr><td colspan="1" rowspan="1"><p>region</p>
 </td><td colspan="1" rowspan="1"><p>Se debe establecer el valor de la región en donde se encuentra publicada la función. Eso lo puede obtener de función en la pestaña de &#34;Detalles&#34; o directamente del valor configurado en el parámetro <code>--region</code> de las opciones de despliegue. (Si no realizó ningún cambio al comando de publicación, la región será us-central1)</p>
+</td></tr>
+<tr><td colspan="1" rowspan="1"><p>service_ip</p>
+</td><td colspan="1" rowspan="1"><p>IP donde se está ejecutando el servidor de Flask en el cluster de Kubernetes.</p>
 </td></tr>
 </table>
 <aside class="warning"><p>Para evitar posibles problemas, tenga en cuenta que los valores no deben tener espacios ni interlineados. </p>
@@ -235,8 +295,9 @@
 <p>Una vez estemos en el panel de administración, seleccionaremos la opción &#34;PAUSAR COLA&#34; que se encuentra en la parte superior.</p>
 <p class="image-container"><img style="width: 601.70px" src="img/6d804470a886832d.png"></p>
 <p>Una vez seleccionada la opción el estado de la cola va a cambiar a pausado. En este estado la cola es accesible. Es posible insertar tareas nuevas, pero estas no se ejecutarán hasta que la cola se vuelva a poner en funcionamiento. </p>
-<p>Ahora debemos realizar la creación de las tareas. Para esto nos dirigiremos a la colección de postman previamente importada y procederemos a realizar varios llamados. Para cada petición ejecutada se mostrará un mensaje en donde indican que la tarea se creó correctamente. Se recomienda crear varias tareas y ponerles un consecutivo para que en la siguiente prueba pueda ver el orden de ejecución y analizar el comportamiento de la orquestación. </p>
+<p>Ahora debemos realizar la creación de las tareas. Para esto nos dirigiremos a la colección de postman previamente importada y procederemos a realizar varios llamados tanto para la función productora como para el servidor de Flask. Para cada petición ejecutada se mostrará un mensaje en donde indican que la tarea se creó correctamente. Se recomienda crear varias tareas y ponerles un consecutivo para que en la siguiente prueba pueda ver el orden de ejecución y analizar el comportamiento de la orquestación. </p>
 <p class="image-container"><img style="width: 601.70px" src="img/c52748e569511dfc.png"></p>
+<p class="image-container"><img style="width: 601.70px" src="img/5a0a38651fbcd008.png"></p>
 <p>Una vez creadas las tareas nos dirigimos al panel de la cola creada y presionamos la opción &#34;ACTUALIZAR&#34; para que podamos ver las tareas, en nuestro caso se crearon cinco tareas. </p>
 <p class="image-container"><img style="width: 601.70px" src="img/7faec6d82be5f877.png"></p>
 <h2 is-upgraded><strong>Prueba 2: Verificación de la ejecución</strong></h2>
