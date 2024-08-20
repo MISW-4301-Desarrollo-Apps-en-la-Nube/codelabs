@@ -241,11 +241,11 @@
 <li><strong>k8s-serviceaccount.yml:</strong> Cuenta de servicio que contiene los roles asignados al servidor.</li>
 </ul>
 <h2 is-upgraded><strong>Configuración de los secrets</strong></h2>
-<p>Para poder realizar la conexión con Cloud Task se requiere especificar el PROJECT_ID y QUEUE_ID de la cola a la cual se quiere acceder, estos valores se obtienen de los secrets de Kubernetes especificados en <strong>k8s-secrets.yml</strong>, por lo cual debe modificar los valores de este archivo antes de crear los recursos.</p>
+<p>Para poder realizar la conexión con Cloud Task se requiere especificar PROJECT_ID (Identificador del proyecto) y QUEUE_ID (Nombre de la cola de tareas a acceder), estos valores se obtienen de los secrets de Kubernetes especificados en <strong>k8s-secrets.yml</strong>, por lo cual debe modificar los valores de este archivo antes de crear los recursos.</p>
 <p class="image-container"><img style="width: 259.50px" src="img/698cd18b1fd69830.png"></p>
 <h2 is-upgraded><strong>Desplegar el servidor</strong></h2>
 <p>Para crear los recursos de Kubernetes especificados anteriormente debe ejecutar en la raíz del repositorio el siguiente comando:</p>
-<pre>kubectl apply -f ./servidor-producir-http/k8s/k8s-secrets.yml</pre>
+<pre>kubectl apply -f ./servidor-producir-http/k8s</pre>
 <p>Con el propósito de confirmar la creación correcta de los recursos puede listar los pods disponibles y una vez finalizado el proceso debería verlos en estado <strong>Running.</strong></p>
 <p class="image-container"><img style="width: 601.70px" src="img/eecee11ec2027988.png"></p>
 <p>Finalmente, para confirmar la IP donde se va a acceder el servidor debe listar los services disponibles en el cluster y obtener el external IP.</p>
