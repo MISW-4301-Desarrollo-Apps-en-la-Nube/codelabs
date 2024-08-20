@@ -254,9 +254,9 @@
 <p>Para poder crear una nueva tarea en Cloud Task el servidor de Flask requiere de permisos especiales por medio del rol que fue asignado a la cuenta de servicio declarada anteriormente (<strong>misw-das-productor</strong>). Para especificar que el servidor debe usar esta cuenta de servicio se creó un recurso de Kubernetes de tipo <code>ServiceAccount</code> el cual está especificado en el archivo <strong>k8s-serviceaccount.yml </strong>y que es utilizado en <strong>k8s-service.yml</strong> (línea 19).</p>
 <p class="image-container"><img style="width: 494.65px" src="img/4034d46775863a90.png"></p>
 <p>Aunque al ejecutar el comando <code>kubectl apply</code> se creó este recurso es necesario ligarlo con la cuenta de servicio que fue creada en IAM, para ello se debe ejecutar el siguiente comando:</p>
-<pre>user@192 ~ % gcloud iam service-accounts add-iam-policy-binding misw-das-productor@&lt;id_proyecto&gt;.iam.gserviceaccount.com \ --role roles/iam.workloadIdentityUser \ --member &#34;serviceAccount:&lt;id_proyecto&gt;.svc.id.goog[default/misw-das-productor]&#34;</pre>
+<pre>user@192 ~ % gcloud iam service-accounts add-iam-policy-binding misw-das-productor@&lt;id_proyecto&gt;.iam.gserviceaccount.com --role roles/iam.workloadIdentityUser --member &#34;serviceAccount:&lt;id_proyecto&gt;.svc.id.goog[default/misw-das-productor]&#34;</pre>
 <p>Luego, debemos anotar la cuenta de servicio de Kubernetes para que GKE vea el vínculo con la cuenta de servicio de IAM:</p>
-<pre>user@192 ~ % kubectl annotate serviceaccount misw-das-productor \ --namespace default \ iam.gke.io/gcp-service-account=misw-das-productor@&lt;id_proyecto&gt;.iam.gserviceaccount.com</pre>
+<pre>user@192 ~ % kubectl annotate serviceaccount misw-das-productor --namespace default iam.gke.io/gcp-service-account=misw-das-productor@&lt;id_proyecto&gt;.iam.gserviceaccount.com</pre>
 <p>Finalmente para que el servidor tome esta nueva configuración debemos reiniciar el deployment de Kubernetes:</p>
 <pre>user@192 ~ % kubectl rollout restart deployment productor</pre>
 
